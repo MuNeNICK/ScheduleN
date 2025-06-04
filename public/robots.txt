@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# スケジュール調整アプリ - ScheduleN (スケるん)
+# https://schedulen.app
+
+Sitemap: https://schedulen.app/sitemap.xml

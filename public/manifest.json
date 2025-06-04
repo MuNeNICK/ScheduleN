@@ -1,0 +1,41 @@
+{
+  "name": "スケるん - ScheduleN",
+  "short_name": "スケるん",
+  "description": "簡単にスケジュール調整ができるWebアプリです。候補日を設定して参加者の都合を集約し、最適な日程を見つけましょう。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "lang": "ja",
+  "scope": "/",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "新しいイベントを作成",
+      "short_name": "作成",
+      "description": "新しいスケジュール調整イベントを作成",
+      "url": "/create",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
