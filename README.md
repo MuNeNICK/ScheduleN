@@ -1,6 +1,7 @@
 # スケるん (ScheduleN)
 
 シンプルなスケジュール調整Webアプリケーションです。
+https://schedulen.munenick.me/
 
 ![イベント画面](docs/images/event.png)
 
