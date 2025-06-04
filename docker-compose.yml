@@ -16,8 +16,8 @@ services:
       timeout: 10s
       retries: 3
 
-  app:
-    image: ghcr.io/munennick/schedulen:latest
+  schedulen:
+    image: ghcr.io/munenick/schedulen:latest
     ports:
       - "3000:3000"
     environment:
