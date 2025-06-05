@@ -672,10 +672,10 @@ export default function TutorialPage() {
           </Card>
 
           {event.confirmedDateOptionIds && event.confirmedDateOptionIds.length > 0 && (
-            <Card className="border-green-200 bg-green-50">
+            <Card className="border-blue-200 bg-blue-50">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-green-800">
+                  <CardTitle className="flex items-center gap-2 text-blue-800">
                     <CheckCircle className="w-5 h-5" />
                     確定日程 ({event.confirmedDateOptionIds.length}件)
                   </CardTitle>
@@ -706,11 +706,11 @@ export default function TutorialPage() {
                       ).length || 0
                       
                       return (
-                        <div key={confirmedId} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+                        <div key={confirmedId} className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200">
                           <div className="flex items-center gap-3">
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                            <span className="font-medium text-green-800">{dateOption.formatted}</span>
-                            <span className="text-sm text-green-600">参加可能: {participants}名</span>
+                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                            <span className="font-medium text-blue-800">{dateOption.formatted}</span>
+                            <span className="text-sm text-blue-600">参加可能: {participants}名</span>
                           </div>
                           <div className="flex gap-2">
                             <Button
@@ -866,9 +866,9 @@ export default function TutorialPage() {
                               disabled={isConfirming || !option.id}
                               className={
                                 isConfirmed 
-                                  ? "bg-green-600 hover:bg-green-700" 
+                                  ? "bg-blue-600 hover:bg-blue-700" 
                                   : isRecommended 
-                                    ? "bg-blue-600 hover:bg-blue-700" 
+                                    ? "bg-green-600 hover:bg-green-700" 
                                     : ""
                               }
                             >
