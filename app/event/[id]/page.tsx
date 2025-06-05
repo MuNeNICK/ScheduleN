@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { ArrowLeft, Users, Calendar, Copy, Check, Edit2, ChevronDown, ChevronUp } from "lucide-react"
+import { ArrowLeft, Users, Calendar, Copy, Check, Edit2, ChevronDown, ChevronUp, CheckCircle, Download, XCircle } from "lucide-react"
 import Link from "next/link"
 import { ja } from "date-fns/locale"
 
@@ -36,6 +36,7 @@ interface Event {
   dateOptions?: DateOptionWithId[]
   participants?: ParticipantWithData[]
   createdAt: string
+  confirmedDateOptionIds?: number[]
 }
 
 type AvailabilityStatus = "unknown" | "available" | "unavailable"
@@ -56,6 +57,8 @@ export default function EventPage() {
   const [password, setPassword] = useState("")
   const [isValidatingPassword, setIsValidatingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState("")
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [calendarKey, setCalendarKey] = useState(0)
   const participateFormRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -307,6 +310,45 @@ export default function EventPage() {
     }
   }
 
+  const toggleDateConfirmation = async (dateOptionId: number) => {
+    if (!event) return
+    
+    setIsConfirming(true)
+    
+    try {
+      const response = await fetch(`/api/events/${event.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ dateOptionId }),
+      })
+      
+      if (response.ok) {
+        // Re-fetch event data
+        const eventResponse = await fetch(`/api/events/${event.id}`)
+        if (eventResponse.ok) {
+          const updatedEvent = await eventResponse.json()
+          setEvent(updatedEvent)
+          // Force calendar re-render
+          setCalendarKey(prev => prev + 1)
+        }
+      } else {
+        alert('操作に失敗しました。')
+      }
+    } catch (error) {
+      console.error('Error toggling date confirmation:', error)
+      alert('操作に失敗しました。')
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
+  const downloadICal = () => {
+    if (!event) return
+    window.open(`/api/events/${event.id}/ical`, '_blank')
+  }
+
   if (!event) {
     return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>
   }
@@ -392,7 +434,7 @@ export default function EventPage() {
 
   const getDateInfo = (date: Date) => {
     if (!date || isNaN(date.getTime())) {
-      return { isEventDate: false, participationRate: 0, summary: '' }
+      return { isEventDate: false, participationRate: 0, summary: '', isConfirmed: false }
     }
 
     const matchingOption = event.dateOptions?.find(option => {
@@ -420,14 +462,16 @@ export default function EventPage() {
     
     if (matchingOption) {
       const rate = getParticipationRate(matchingOption)
+      const isConfirmed = matchingOption.id && event.confirmedDateOptionIds?.includes(matchingOption.id)
       return {
         isEventDate: true,
         participationRate: rate,
-        summary: getSummary(matchingOption)
+        summary: getSummary(matchingOption),
+        isConfirmed: Boolean(isConfirmed)
       }
     }
     
-    return { isEventDate: false, participationRate: 0, summary: '' }
+    return { isEventDate: false, participationRate: 0, summary: '', isConfirmed: false }
   }
 
   return (
@@ -477,6 +521,62 @@ export default function EventPage() {
               </div>
             </CardHeader>
           </Card>
+
+          {event.confirmedDateOptionIds && event.confirmedDateOptionIds.length > 0 && (
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-green-800">
+                    <CheckCircle className="w-5 h-5" />
+                    確定日程 ({event.confirmedDateOptionIds.length}件)
+                  </CardTitle>
+                  <Button
+                    onClick={downloadICal}
+                    variant="outline"
+                    size="sm"
+                    className="bg-white"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    すべてカレンダーに追加
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {event.confirmedDateOptionIds.map((confirmedId) => {
+                    const dateOption = event.dateOptions?.find(opt => opt.id === confirmedId)
+                    if (!dateOption) return null
+                    
+                    const participants = event.participants?.filter(p => 
+                      p.availabilities[confirmedId.toString()] === 'available'
+                    ).length || 0
+                    
+                    return (
+                      <div key={confirmedId} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-green-800">{dateOption.formatted}</span>
+                          <span className="text-sm text-green-600">参加可能: {participants}名</span>
+                        </div>
+                        <Button
+                          onClick={() => dateOption.id && toggleDateConfirmation(dateOption.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="hover:bg-red-50"
+                          disabled={isConfirming}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="text-sm text-green-600 mt-3">
+                  複数の日程が確定されています。「すべてカレンダーに追加」ボタンからGoogleカレンダー等にまとめてインポートできます。
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {(event.participants?.length ?? 0) > 0 && event.dateOptions && (
             <Card>
@@ -538,6 +638,44 @@ export default function EventPage() {
                       ))}
                       <TableCell></TableCell>
                     </TableRow>
+                    <TableRow>
+                      <TableCell className="font-bold">操作</TableCell>
+                      {event.dateOptions?.map((option) => {
+                        const rate = getParticipationRate(option)
+                        const isRecommended = rate >= 0.7
+                        const isConfirmed = option.id && event.confirmedDateOptionIds?.includes(option.id)
+                        return (
+                          <TableCell key={option.id || option.datetime} className="text-center">
+                            <Button
+                              onClick={() => option.id && toggleDateConfirmation(option.id)}
+                              variant={isConfirmed ? "default" : isRecommended ? "default" : "outline"}
+                              size="sm"
+                              disabled={isConfirming || !option.id}
+                              className={
+                                isConfirmed 
+                                  ? "bg-green-600 hover:bg-green-700" 
+                                  : isRecommended 
+                                    ? "bg-blue-600 hover:bg-blue-700" 
+                                    : ""
+                              }
+                            >
+                              {isConfirmed ? (
+                                <>
+                                  <Check className="w-4 h-4 mr-1" />
+                                  確定済
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  確定
+                                </>
+                              )}
+                            </Button>
+                          </TableCell>
+                        )
+                      })}
+                      <TableCell></TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </CardContent>
@@ -559,6 +697,7 @@ export default function EventPage() {
                 <div className="space-y-4">
                   <div className="relative">
                     <CalendarComponent
+                      key={calendarKey}
                       locale={ja}
                       className="rounded-md border w-fit mx-auto"
                       classNames={{
@@ -583,20 +722,30 @@ export default function EventPage() {
                         day_hidden: "invisible",
                       }}
                       modifiers={{
+                        confirmed: getEventDates().filter(date => {
+                          const info = getDateInfo(date)
+                          return info.isConfirmed
+                        }),
                         high: getEventDates().filter(date => {
                           const info = getDateInfo(date)
-                          return info.participationRate >= 0.7
+                          return info.participationRate >= 0.7 && !info.isConfirmed
                         }),
                         medium: getEventDates().filter(date => {
                           const info = getDateInfo(date)
-                          return info.participationRate >= 0.4 && info.participationRate < 0.7
+                          return info.participationRate >= 0.4 && info.participationRate < 0.7 && !info.isConfirmed
                         }),
                         low: getEventDates().filter(date => {
                           const info = getDateInfo(date)
-                          return info.participationRate < 0.4
+                          return info.participationRate < 0.4 && !info.isConfirmed
                         }),
                       }}
                       modifiersStyles={{
+                        confirmed: {
+                          backgroundColor: '#2563eb',
+                          color: 'white',
+                          fontWeight: 'bold',
+                          borderRadius: '8px',
+                        },
                         high: { 
                           backgroundColor: '#22c55e',
                           color: 'white',
@@ -641,22 +790,28 @@ export default function EventPage() {
                         const summary = getSummary(option)
                         const isHighParticipation = rate >= 0.7
                         const isMediumParticipation = rate >= 0.4
+                        const isConfirmed = option.id && event.confirmedDateOptionIds?.includes(option.id)
                         
                         return (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                          <div key={index} className={`flex items-center justify-between p-3 border rounded-lg ${isConfirmed ? 'bg-blue-50 border-blue-300' : 'bg-gray-50'}`}>
                             <div className="flex items-center gap-3">
                               <div 
                                 className={`
                                   w-4 h-4 rounded-full
-                                  ${isHighParticipation 
-                                    ? 'bg-green-500' 
-                                    : isMediumParticipation 
-                                      ? 'bg-yellow-500' 
-                                      : 'bg-red-200'
+                                  ${isConfirmed
+                                    ? 'bg-blue-600'
+                                    : isHighParticipation 
+                                      ? 'bg-green-500' 
+                                      : isMediumParticipation 
+                                        ? 'bg-yellow-500' 
+                                        : 'bg-red-200'
                                   }
                                 `}
                               />
                               <span className="font-medium">{option.formatted}</span>
+                              {isConfirmed && (
+                                <Badge variant="default" className="bg-blue-600 text-xs">確定</Badge>
+                              )}
                             </div>
                             <div className="text-right">
                               <div className="font-bold text-lg">{ratePercentage}%</div>
@@ -672,6 +827,10 @@ export default function EventPage() {
                   <div className="mt-6 space-y-2">
                     <div className="text-sm font-medium">凡例</div>
                     <div className="flex flex-wrap gap-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-blue-600 rounded"></div>
+                        <span>確定済み</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 bg-green-500 rounded"></div>
                         <span>参加率70%以上（推奨）</span>

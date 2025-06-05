@@ -75,6 +75,21 @@ async function initDatabase() {
       // Column might already exist, ignore error
       console.log('Password column already exists or error adding it:', error)
     }
+
+    // Create confirmed_dates table if it doesn't exist
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS confirmed_dates (
+          id SERIAL PRIMARY KEY,
+          event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+          date_option_id INTEGER NOT NULL REFERENCES date_options(id) ON DELETE CASCADE,
+          confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(event_id, date_option_id)
+        );
+      `)
+    } catch (error) {
+      console.log('Confirmed dates table might already exist:', error)
+    }
   } finally {
     client.release()
   }
@@ -88,6 +103,7 @@ export interface Event {
   dateOptions: DateOption[]
   participants: Participant[]
   createdAt: string
+  confirmedDateOptionIds?: number[]
 }
 
 export interface DateOption {
@@ -132,4 +148,11 @@ export interface AvailabilityRow {
   participant_id: number
   date_option_id: number
   availability: string
+}
+
+export interface ConfirmedDateRow {
+  id: number
+  event_id: string
+  date_option_id: number
+  confirmed_at: string
 }

@@ -1,4 +1,4 @@
-import { getDb, Event, EventRow, DateOptionRow, ParticipantRow, AvailabilityRow, Participant } from './db'
+import { getDb, Event, EventRow, DateOptionRow, ParticipantRow, AvailabilityRow, Participant, ConfirmedDateRow } from './db'
 
 export async function createEvent(eventData: Omit<Event, 'createdAt'>): Promise<string> {
   const pool = await getDb()
@@ -74,6 +74,13 @@ export async function getEvent(id: string): Promise<Event | null> {
       })
     }
     
+    // Get confirmed dates
+    const confirmedDatesResult = await client.query<ConfirmedDateRow>(
+      'SELECT * FROM confirmed_dates WHERE event_id = $1',
+      [id]
+    )
+    const confirmedDateOptionIds = confirmedDatesResult.rows.map(row => row.date_option_id)
+    
     return {
       id: event.id,
       title: event.title,
@@ -85,7 +92,8 @@ export async function getEvent(id: string): Promise<Event | null> {
         formatted: row.formatted
       })),
       participants,
-      createdAt: event.created_at
+      createdAt: event.created_at,
+      confirmedDateOptionIds: confirmedDateOptionIds.length > 0 ? confirmedDateOptionIds : undefined
     }
   } finally {
     client.release()
@@ -293,6 +301,37 @@ export async function getAllEvents(): Promise<Event[]> {
     }
     
     return events
+  } finally {
+    client.release()
+  }
+}
+
+export async function toggleEventDateConfirmation(eventId: string, dateOptionId: number): Promise<{ confirmed: boolean }> {
+  const pool = await getDb()
+  const client = await pool.connect()
+  
+  try {
+    // Check if this date is already confirmed
+    const existingResult = await client.query<ConfirmedDateRow>(
+      'SELECT * FROM confirmed_dates WHERE event_id = $1 AND date_option_id = $2',
+      [eventId, dateOptionId]
+    )
+    
+    if (existingResult.rows.length > 0) {
+      // If already confirmed, remove it
+      await client.query(
+        'DELETE FROM confirmed_dates WHERE event_id = $1 AND date_option_id = $2',
+        [eventId, dateOptionId]
+      )
+      return { confirmed: false }
+    } else {
+      // If not confirmed, add it
+      await client.query(
+        'INSERT INTO confirmed_dates (event_id, date_option_id) VALUES ($1, $2)',
+        [eventId, dateOptionId]
+      )
+      return { confirmed: true }
+    }
   } finally {
     client.release()
   }
