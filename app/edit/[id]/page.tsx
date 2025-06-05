@@ -15,6 +15,7 @@ interface Event {
   title: string
   description: string
   dateOptions: Array<{
+    id?: number
     datetime: string
     formatted: string
     startTime?: string
@@ -26,6 +27,7 @@ interface Event {
     submittedAt: string
   }>
   createdAt: string
+  confirmedDateOptionIds?: number[]
 }
 
 interface DateTimeOption {
