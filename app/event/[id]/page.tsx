@@ -65,6 +65,8 @@ export default function EventPage() {
   const [showIndividualDropdowns, setShowIndividualDropdowns] = useState<Record<number, boolean>>({})
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [tableViewMode, setTableViewMode] = useState<'all' | 'monthly'>('all')
+  const [selectedTableMonth, setSelectedTableMonth] = useState(new Date())
   const participateFormRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -726,6 +728,57 @@ export default function EventPage() {
     return { available, unavailable, unknown }
   }
 
+  const getFilteredDateOptions = () => {
+    if (!event.dateOptions) return []
+    
+    if (tableViewMode === 'all') {
+      return event.dateOptions
+    }
+    
+    // 月ごと表示の場合、選択された月の日程のみ表示
+    return event.dateOptions.filter(option => {
+      try {
+        let optionDate: Date
+        if (option.datetime.includes('T')) {
+          optionDate = new Date(option.datetime)
+        } else {
+          optionDate = new Date(option.datetime + 'T00:00:00')
+        }
+        
+        return optionDate.getFullYear() === selectedTableMonth.getFullYear() &&
+               optionDate.getMonth() === selectedTableMonth.getMonth()
+      } catch {
+        return false
+      }
+    })
+  }
+
+  const getAvailableMonths = () => {
+    if (!event.dateOptions) return []
+    
+    const months = new Set<string>()
+    event.dateOptions.forEach(option => {
+      try {
+        let optionDate: Date
+        if (option.datetime.includes('T')) {
+          optionDate = new Date(option.datetime)
+        } else {
+          optionDate = new Date(option.datetime + 'T00:00:00')
+        }
+        
+        const monthKey = `${optionDate.getFullYear()}-${optionDate.getMonth()}`
+        months.add(monthKey)
+      } catch {
+        // ignore
+      }
+    })
+    
+    return Array.from(months).map(monthKey => {
+      const [year, month] = monthKey.split('-').map(Number)
+      return new Date(year, month, 1)
+    }).sort((a, b) => a.getTime() - b.getTime())
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
@@ -908,14 +961,55 @@ export default function EventPage() {
           {(event.participants?.length ?? 0) > 0 && event.dateOptions && (
             <Card>
               <CardHeader>
-                <CardTitle>参加状況</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>参加状況</CardTitle>
+                  {getAvailableMonths().length > 1 && (
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant={tableViewMode === 'all' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setTableViewMode('all')}
+                        >
+                          一覧表示
+                        </Button>
+                        <Button
+                          variant={tableViewMode === 'monthly' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setTableViewMode('monthly')}
+                        >
+                          月ごと表示
+                        </Button>
+                      </div>
+                      {tableViewMode === 'monthly' && (
+                        <select
+                          value={`${selectedTableMonth.getFullYear()}-${selectedTableMonth.getMonth()}`}
+                          onChange={(e) => {
+                            const [year, month] = e.target.value.split('-').map(Number)
+                            setSelectedTableMonth(new Date(year, month, 1))
+                          }}
+                          className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                        >
+                          {getAvailableMonths().map(month => (
+                            <option 
+                              key={`${month.getFullYear()}-${month.getMonth()}`}
+                              value={`${month.getFullYear()}-${month.getMonth()}`}
+                            >
+                              {month.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>参加者</TableHead>
-                      {event.dateOptions.map((option) => (
+                      {getFilteredDateOptions().map((option) => (
                         <TableHead key={option.id || option.datetime} className="text-center min-w-[120px]">
                           <div>
                             {option.formatted}
@@ -941,7 +1035,7 @@ export default function EventPage() {
                             </Button>
                           </div>
                         </TableCell>
-                        {event.dateOptions?.map((option) => {
+                        {getFilteredDateOptions().map((option) => {
                           const key = option.id ? option.id.toString() : option.datetime
                           return (
                             <TableCell key={key} className="text-center">
@@ -961,14 +1055,14 @@ export default function EventPage() {
                     
                     {/* 参加者セクションと操作セクションの境界線 */}
                     <TableRow>
-                      <TableCell colSpan={event.dateOptions.length + 2} className="h-4 border-b-0 bg-gray-50/30">
+                      <TableCell colSpan={getFilteredDateOptions().length + 2} className="h-4 border-b-0 bg-gray-50/30">
                       </TableCell>
                     </TableRow>
                     
                     {/* 集計・操作セクション */}
                     <TableRow className="bg-blue-50/50">
                       <TableCell className="font-bold text-blue-900">参加可能人数</TableCell>
-                      {event.dateOptions?.map((option) => (
+                      {getFilteredDateOptions().map((option) => (
                         <TableCell key={option.id || option.datetime} className="text-center font-bold text-blue-900">
                           {getSummary(option)}
                         </TableCell>
@@ -977,7 +1071,7 @@ export default function EventPage() {
                     </TableRow>
                     <TableRow className="bg-green-50/50">
                       <TableCell className="font-bold text-green-900">日程確定</TableCell>
-                      {event.dateOptions?.map((option) => {
+                      {getFilteredDateOptions().map((option) => {
                         const rate = getParticipationRate(option)
                         const isRecommended = rate >= 0.7
                         const isConfirmed = option.id && event.confirmedDateOptionIds?.includes(option.id)
