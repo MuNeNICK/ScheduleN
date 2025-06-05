@@ -929,10 +929,27 @@ export default function TutorialPage() {
                     </button>
                   </div>
                   
-                  {selectedDate && (
-                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  {selectedDate && (() => {
+                    const dateInfo = getDateInfo(selectedDate)
+                    const bgColor = dateInfo.isConfirmed 
+                      ? 'bg-blue-50 border-blue-200' 
+                      : dateInfo.participationRate >= 0.7 
+                        ? 'bg-green-50 border-green-200' 
+                        : dateInfo.participationRate >= 0.4 
+                          ? 'bg-yellow-50 border-yellow-200' 
+                          : 'bg-red-50 border-red-200'
+                    const textColor = dateInfo.isConfirmed 
+                      ? 'text-blue-900' 
+                      : dateInfo.participationRate >= 0.7 
+                        ? 'text-green-900' 
+                        : dateInfo.participationRate >= 0.4 
+                          ? 'text-yellow-900' 
+                          : 'text-red-900'
+                    
+                    return (
+                    <div className={`mt-6 p-4 ${bgColor} border rounded-lg`}>
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-blue-900">
+                        <h4 className={`font-semibold ${textColor}`}>
                           {selectedDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}の参加状況
                         </h4>
                         <Button
@@ -1008,7 +1025,8 @@ export default function TutorialPage() {
                         )
                       })()}
                     </div>
-                  )}
+                    )
+                  })()}
                   
                   <div className="mt-4">
                     <Button
