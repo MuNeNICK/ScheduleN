@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, Users, Clock } from "lucide-react"
+import { Calendar, Users, Clock, HelpCircle } from "lucide-react"
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -20,11 +20,19 @@ export default function Home() {
           <p className="text-xl text-gray-600 mb-8">
             みんなの都合を簡単に調整
           </p>
-          <Link href="/create">
-            <Button size="lg" className="text-lg px-8 py-3">
-              新しいイベントを作成
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/create">
+              <Button size="lg" className="text-lg px-8 py-3">
+                新しいイベントを作成
+              </Button>
+            </Link>
+            <Link href="/tutorial">
+              <Button variant="outline" size="lg" className="text-lg px-8 py-3">
+                <HelpCircle className="w-5 h-5 mr-2" />
+                使い方を見る
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
