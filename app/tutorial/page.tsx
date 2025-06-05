@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { ArrowLeft, Users, Calendar, Copy, Check, Edit2, ChevronDown, ChevronUp, CheckCircle, Download, XCircle, Info, Lightbulb, RotateCcw } from "lucide-react"
+import { ArrowLeft, Users, Calendar, Copy, Check, Edit2, ChevronDown, ChevronUp, CheckCircle, XCircle, Info, Lightbulb, RotateCcw } from "lucide-react"
 import Link from "next/link"
 import { ja } from "date-fns/locale"
 
@@ -133,8 +133,6 @@ export default function TutorialPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
   const [calendarKey, setCalendarKey] = useState(0)
-  const [showCalendarDropdown, setShowCalendarDropdown] = useState(false)
-  const [showIndividualDropdowns, setShowIndividualDropdowns] = useState<Record<number, boolean>>({})
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 0, 1)) // 2025年1月に設定
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [showTip, setShowTip] = useState<string | null>(null)
@@ -161,19 +159,6 @@ export default function TutorialPage() {
   useEffect(() => {
     setCalendarKey(prev => prev + 1)
   }, [event.confirmedDateOptionIds, event.participants])
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element
-      if (!target.closest('.calendar-dropdown')) {
-        setShowCalendarDropdown(false)
-        setShowIndividualDropdowns({})
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const toggleAvailability = (dateOptionId: string) => {
     setShowTip("availability-toggle")
@@ -407,12 +392,6 @@ export default function TutorialPage() {
     setIsConfirming(false)
   }
 
-  const downloadICal = () => {
-    setShowTip("download-ical")
-    setTimeout(() => setShowTip(null), 3000)
-    alert("デモモードです。実際のダウンロードは行われません。")
-  }
-
   const resetTutorialData = () => {
     setShowTip("data-reset")
     setTimeout(() => setShowTip(null), 3000)
@@ -582,7 +561,7 @@ export default function TutorialPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Info className="w-6 h-6 text-blue-600" />
-                  <CardTitle className="text-blue-800">ScheduleNの使い方</CardTitle>
+                  <CardTitle className="text-blue-800">スケるんの使い方</CardTitle>
                 </div>
                 <Button
                   onClick={resetTutorialData}
