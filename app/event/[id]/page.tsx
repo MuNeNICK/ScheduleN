@@ -63,6 +63,8 @@ export default function EventPage() {
   const [calendarKey, setCalendarKey] = useState(0)
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false)
   const [showIndividualDropdowns, setShowIndividualDropdowns] = useState<Record<number, boolean>>({})
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const participateFormRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -667,7 +669,7 @@ export default function EventPage() {
 
   const getDateInfo = (date: Date) => {
     if (!date || isNaN(date.getTime())) {
-      return { isEventDate: false, participationRate: 0, summary: '', isConfirmed: false }
+      return { isEventDate: false, participationRate: 0, summary: '', isConfirmed: false, dateOption: null }
     }
 
     const matchingOption = event.dateOptions?.find(option => {
@@ -700,11 +702,28 @@ export default function EventPage() {
         isEventDate: true,
         participationRate: rate,
         summary: getSummary(matchingOption),
-        isConfirmed: Boolean(isConfirmed)
+        isConfirmed: Boolean(isConfirmed),
+        dateOption: matchingOption
       }
     }
     
-    return { isEventDate: false, participationRate: 0, summary: '', isConfirmed: false }
+    return { isEventDate: false, participationRate: 0, summary: '', isConfirmed: false, dateOption: null }
+  }
+
+  const getParticipantsForDate = (date: Date) => {
+    const dateInfo = getDateInfo(date)
+    if (!dateInfo.isEventDate || !dateInfo.dateOption) {
+      return { available: [], unavailable: [], unknown: [] }
+    }
+
+    const key = dateInfo.dateOption.id ? dateInfo.dateOption.id.toString() : dateInfo.dateOption.datetime
+    const participants = event.participants || []
+
+    const available = participants.filter(p => p.availabilities[key] === "available")
+    const unavailable = participants.filter(p => p.availabilities[key] === "unavailable")
+    const unknown = participants.filter(p => !p.availabilities[key] || p.availabilities[key] === "unknown")
+
+    return { available, unavailable, unknown }
   }
 
   return (
@@ -939,17 +958,25 @@ export default function EventPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    <TableRow className="bg-gray-50">
-                      <TableCell className="font-bold">参加可能人数</TableCell>
+                    
+                    {/* 参加者セクションと操作セクションの境界線 */}
+                    <TableRow>
+                      <TableCell colSpan={event.dateOptions.length + 2} className="h-4 border-b-0 bg-gray-50/30">
+                      </TableCell>
+                    </TableRow>
+                    
+                    {/* 集計・操作セクション */}
+                    <TableRow className="bg-blue-50/50">
+                      <TableCell className="font-bold text-blue-900">参加可能人数</TableCell>
                       {event.dateOptions?.map((option) => (
-                        <TableCell key={option.id || option.datetime} className="text-center font-bold">
+                        <TableCell key={option.id || option.datetime} className="text-center font-bold text-blue-900">
                           {getSummary(option)}
                         </TableCell>
                       ))}
                       <TableCell></TableCell>
                     </TableRow>
-                    <TableRow>
-                      <TableCell className="font-bold">操作</TableCell>
+                    <TableRow className="bg-green-50/50">
+                      <TableCell className="font-bold text-green-900">日程確定</TableCell>
                       {event.dateOptions?.map((option) => {
                         const rate = getParticipationRate(option)
                         const isRecommended = rate >= 0.7
@@ -1005,26 +1032,46 @@ export default function EventPage() {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
-                  <div className="relative">
+                  <div className="flex items-center justify-center gap-4">
+                    <button 
+                      onClick={() => {
+                        const newMonth = new Date(currentMonth);
+                        newMonth.setMonth(newMonth.getMonth() - 1);
+                        setCurrentMonth(newMonth);
+                      }}
+                      className="h-10 w-10 bg-transparent hover:bg-gray-100 flex items-center justify-center rounded-md transition-colors"
+                    >
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    
                     <CalendarComponent
                       key={calendarKey}
+                      month={currentMonth}
                       locale={ja}
-                      className="rounded-md border w-fit mx-auto"
+                      className="w-fit p-4 border rounded-md"
+                      onDayClick={(date) => {
+                        const dateInfo = getDateInfo(date)
+                        if (dateInfo.isEventDate) {
+                          setSelectedDate(selectedDate?.getTime() === date.getTime() ? null : date)
+                        }
+                      }}
                       classNames={{
-                        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+                        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-6 sm:space-y-0",
                         month: "space-y-4",
-                        caption: "flex justify-center pt-1 pb-4 relative items-center",
-                        caption_label: "text-lg font-semibold px-12",
-                        nav: "absolute inset-0 flex justify-between items-center px-2",
-                        nav_button: "h-8 w-8 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center justify-center shadow-sm",
-                        nav_button_previous: "",
-                        nav_button_next: "",
-                        table: "w-full border-collapse space-y-1",
-                        head_row: "flex",
-                        head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem] flex items-center justify-center",
-                        row: "flex w-full mt-2",
-                        cell: "h-9 w-9 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
-                        day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors text-center leading-9",
+                        caption: "flex justify-center pt-1 pb-4 items-center w-full",
+                        caption_label: "text-lg font-semibold",
+                        nav: "hidden",
+                        nav_button: "hidden",
+                        nav_button_previous: "hidden",
+                        nav_button_next: "hidden",
+                        table: "w-full border-collapse",
+                        head_row: "flex mb-1",
+                        head_cell: "text-muted-foreground rounded-md w-10 h-8 font-normal text-sm flex items-center justify-center",
+                        row: "flex w-full mt-1",
+                        cell: "h-10 w-10 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
+                        day: "h-10 w-10 p-0 font-normal aria-selected:opacity-100 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors text-center leading-10 cursor-pointer",
                         day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-md",
                         day_today: "bg-accent text-accent-foreground rounded-md",
                         day_outside: "text-muted-foreground opacity-50 rounded-md",
@@ -1076,7 +1123,101 @@ export default function EventPage() {
                         },
                       }}
                     />
+                    
+                    <button 
+                      onClick={() => {
+                        const newMonth = new Date(currentMonth);
+                        newMonth.setMonth(newMonth.getMonth() + 1);
+                        setCurrentMonth(newMonth);
+                      }}
+                      className="h-10 w-10 bg-transparent hover:bg-gray-100 flex items-center justify-center rounded-md transition-colors"
+                    >
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
+                  
+                  {selectedDate && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-blue-900">
+                          {selectedDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}の参加状況
+                        </h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedDate(null)}
+                          className="h-6 w-6 p-0"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                      {(() => {
+                        const participants = getParticipantsForDate(selectedDate)
+                        const dateInfo = getDateInfo(selectedDate)
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="font-medium">時間:</span>
+                              <span>{dateInfo.dateOption?.formatted}</span>
+                              {dateInfo.isConfirmed && (
+                                <Badge variant="default" className="bg-blue-600 text-xs">確定</Badge>
+                              )}
+                            </div>
+                            
+                            {participants.available.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                  <span className="font-medium text-sm">参加可能 ({participants.available.length}名)</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {participants.available.map((participant) => (
+                                    <Badge key={participant.name} variant="secondary" className="bg-green-100 text-green-800">
+                                      {participant.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {participants.unavailable.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                  <span className="font-medium text-sm">参加不可 ({participants.unavailable.length}名)</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {participants.unavailable.map((participant) => (
+                                    <Badge key={participant.name} variant="secondary" className="bg-red-100 text-red-800">
+                                      {participant.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {participants.unknown.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                  <span className="font-medium text-sm">未回答 ({participants.unknown.length}名)</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {participants.unknown.map((participant) => (
+                                    <Badge key={participant.name} variant="secondary" className="bg-gray-100 text-gray-800">
+                                      {participant.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
                   
                   <div className="mt-4">
                     <Button
