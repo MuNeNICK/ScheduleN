@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { ArrowLeft, Users, Calendar, Copy, Check, Edit2, ChevronDown, ChevronUp, CheckCircle, Download, XCircle } from "lucide-react"
+import { ArrowLeft, Users, User, Calendar, Copy, Check, Edit2, ChevronDown, ChevronUp, CheckCircle, Download, XCircle } from "lucide-react"
 import Link from "next/link"
 import { ja } from "date-fns/locale"
 
@@ -962,7 +962,10 @@ export default function EventPage() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>参加状況</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    参加状況
+                  </CardTitle>
                   {getAvailableMonths().length > 1 && (
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
@@ -1445,7 +1448,10 @@ export default function EventPage() {
           {!showParticipateForm && event.dateOptions ? (
             <Card>
               <CardHeader>
-                <CardTitle>参加登録</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  参加登録
+                </CardTitle>
                 <CardDescription>
                   このイベントに参加する場合は、下のボタンをクリックしてください。
                 </CardDescription>
