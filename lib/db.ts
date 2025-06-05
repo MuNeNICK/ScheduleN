@@ -37,7 +37,9 @@ async function initDatabase() {
         id SERIAL PRIMARY KEY,
         event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         datetime TEXT NOT NULL,
-        formatted TEXT NOT NULL
+        formatted TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT
       );
 
       CREATE TABLE IF NOT EXISTS participants (
@@ -90,6 +92,18 @@ async function initDatabase() {
     } catch (error) {
       console.log('Confirmed dates table might already exist:', error)
     }
+
+    // Add start_time and end_time columns to existing date_options table if they don't exist
+    try {
+      await client.query(`
+        ALTER TABLE date_options ADD COLUMN IF NOT EXISTS start_time TEXT;
+      `)
+      await client.query(`
+        ALTER TABLE date_options ADD COLUMN IF NOT EXISTS end_time TEXT;
+      `)
+    } catch (error) {
+      console.log('Time columns might already exist:', error)
+    }
   } finally {
     client.release()
   }
@@ -110,6 +124,8 @@ export interface DateOption {
   id?: number
   datetime: string
   formatted: string
+  startTime?: string
+  endTime?: string
 }
 
 export interface Participant {
@@ -133,6 +149,8 @@ export interface DateOptionRow {
   event_id: string
   datetime: string
   formatted: string
+  start_time: string | null
+  end_time: string | null
 }
 
 export interface ParticipantRow {

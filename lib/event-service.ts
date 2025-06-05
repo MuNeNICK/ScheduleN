@@ -14,8 +14,8 @@ export async function createEvent(eventData: Omit<Event, 'createdAt'>): Promise<
 
     for (const dateOption of eventData.dateOptions) {
       await client.query(
-        'INSERT INTO date_options (event_id, datetime, formatted) VALUES ($1, $2, $3)',
-        [eventData.id, dateOption.datetime, dateOption.formatted]
+        'INSERT INTO date_options (event_id, datetime, formatted, start_time, end_time) VALUES ($1, $2, $3, $4, $5)',
+        [eventData.id, dateOption.datetime, dateOption.formatted, dateOption.startTime || null, dateOption.endTime || null]
       )
     }
     
@@ -89,7 +89,9 @@ export async function getEvent(id: string): Promise<Event | null> {
       dateOptions: dateOptionsResult.rows.map(row => ({
         id: row.id,
         datetime: row.datetime,
-        formatted: row.formatted
+        formatted: row.formatted,
+        startTime: row.start_time || undefined,
+        endTime: row.end_time || undefined
       })),
       participants,
       createdAt: event.created_at,
@@ -211,8 +213,8 @@ export async function updateEvent(id: string, updates: Partial<Pick<Event, 'titl
       // 新しい日時オプションを作成し、既存の参加者回答を復元
       for (const dateOption of updates.dateOptions) {
         const insertResult = await client.query<{ id: number }>(
-          'INSERT INTO date_options (event_id, datetime, formatted) VALUES ($1, $2, $3) RETURNING id',
-          [id, dateOption.datetime, dateOption.formatted]
+          'INSERT INTO date_options (event_id, datetime, formatted, start_time, end_time) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+          [id, dateOption.datetime, dateOption.formatted, dateOption.startTime || null, dateOption.endTime || null]
         )
         const newOptionId = insertResult.rows[0].id
         

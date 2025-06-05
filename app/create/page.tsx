@@ -14,6 +14,8 @@ interface DateTimeOption {
   id: string
   datetime: string
   hasTime: boolean
+  startTime?: string
+  endTime?: string
 }
 
 export default function CreateEventPage() {
@@ -22,18 +24,19 @@ export default function CreateEventPage() {
   const [description, setDescription] = useState("")
   const [password, setPassword] = useState("")
   const [dateOptions, setDateOptions] = useState<DateTimeOption[]>([
-    { id: "1", datetime: "", hasTime: false }
+    { id: "1", datetime: "", hasTime: false, startTime: "", endTime: "" }
   ])
   const [showBulkAdd, setShowBulkAdd] = useState(false)
   const [bulkStartDate, setBulkStartDate] = useState("")
   const [bulkEndDate, setBulkEndDate] = useState("")
-  const [bulkTime, setBulkTime] = useState("")
+  const [bulkStartTime, setBulkStartTime] = useState("")
+  const [bulkEndTime, setBulkEndTime] = useState("")
   const [bulkHasTime, setBulkHasTime] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const addDateOption = () => {
     const newId = Math.random().toString(36).substr(2, 9)
-    setDateOptions([...dateOptions, { id: newId, datetime: "", hasTime: false }])
+    setDateOptions([...dateOptions, { id: newId, datetime: "", hasTime: false, startTime: "", endTime: "" }])
   }
 
   const removeDateOption = (id: string) => {
@@ -42,9 +45,9 @@ export default function CreateEventPage() {
     }
   }
 
-  const updateDateOption = (id: string, datetime: string, hasTime?: boolean) => {
+  const updateDateOption = (id: string, updates: Partial<DateTimeOption>) => {
     setDateOptions(dateOptions.map(option =>
-      option.id === id ? { ...option, datetime, ...(hasTime !== undefined && { hasTime }) } : option
+      option.id === id ? { ...option, ...updates } : option
     ))
   }
 
@@ -67,15 +70,14 @@ export default function CreateEventPage() {
 
     while (currentDate <= endDate) {
       const dateStr = currentDate.toISOString().split('T')[0]
-      const datetimeStr = bulkHasTime && bulkTime 
-        ? `${dateStr}T${bulkTime}` 
-        : dateStr
 
       const newId = Math.random().toString(36).substr(2, 9)
       newOptions.push({
         id: newId,
-        datetime: datetimeStr,
-        hasTime: bulkHasTime
+        datetime: dateStr,
+        hasTime: bulkHasTime,
+        startTime: bulkHasTime ? bulkStartTime : "",
+        endTime: bulkHasTime ? bulkEndTime : ""
       })
 
       currentDate.setDate(currentDate.getDate() + 1)
@@ -84,7 +86,8 @@ export default function CreateEventPage() {
     setDateOptions([...dateOptions, ...newOptions])
     setBulkStartDate("")
     setBulkEndDate("")
-    setBulkTime("")
+    setBulkStartTime("")
+    setBulkEndTime("")
     setBulkHasTime(false)
     setShowBulkAdd(false)
   }
@@ -105,12 +108,23 @@ export default function CreateEventPage() {
       title,
       description,
       password: password.trim() || undefined,
-      dateOptions: validOptions.map(option => ({
-        datetime: option.datetime,
-        formatted: option.hasTime 
-          ? new Date(option.datetime).toLocaleString('ja-JP')
-          : new Date(option.datetime + 'T00:00:00').toLocaleDateString('ja-JP')
-      })),
+      dateOptions: validOptions.map(option => {
+        let formatted = new Date(option.datetime + 'T00:00:00').toLocaleDateString('ja-JP')
+        
+        if (option.hasTime && option.startTime) {
+          const timeStr = option.endTime 
+            ? `${option.startTime} - ${option.endTime}`
+            : option.startTime
+          formatted += ` ${timeStr}`
+        }
+        
+        return {
+          datetime: option.datetime,
+          formatted,
+          startTime: option.hasTime ? option.startTime : undefined,
+          endTime: option.hasTime ? option.endTime : undefined
+        }
+      }),
       participants: [],
       createdAt: new Date().toISOString()
     }
@@ -241,12 +255,26 @@ export default function CreateEventPage() {
                         <Label htmlFor="bulk-has-time" className="text-xs">時間を指定</Label>
                       </div>
                       {bulkHasTime && (
-                        <Input
-                          type="time"
-                          value={bulkTime}
-                          onChange={(e) => setBulkTime(e.target.value)}
-                          placeholder="時間を選択"
-                        />
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <Label className="text-xs">開始時間</Label>
+                            <Input
+                              type="time"
+                              value={bulkStartTime}
+                              onChange={(e) => setBulkStartTime(e.target.value)}
+                              placeholder="開始時間"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <Label className="text-xs">終了時間</Label>
+                            <Input
+                              type="time"
+                              value={bulkEndTime}
+                              onChange={(e) => setBulkEndTime(e.target.value)}
+                              placeholder="終了時間"
+                            />
+                          </div>
+                        </div>
                       )}
                       <div className="flex gap-2">
                         <Button
@@ -271,12 +299,12 @@ export default function CreateEventPage() {
                 )}
 
                 {dateOptions.map((option) => (
-                  <div key={option.id} className="space-y-2">
+                  <div key={option.id} className="space-y-2 p-4 border rounded-lg">
                     <div className="flex gap-2 items-center">
                       <Input
-                        type={option.hasTime ? "datetime-local" : "date"}
+                        type="date"
                         value={option.datetime}
-                        onChange={(e) => updateDateOption(option.id, e.target.value)}
+                        onChange={(e) => updateDateOption(option.id, { datetime: e.target.value })}
                         className="flex-1"
                         required
                       />
@@ -284,7 +312,7 @@ export default function CreateEventPage() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        onClick={() => updateDateOption(option.id, option.datetime, !option.hasTime)}
+                        onClick={() => updateDateOption(option.id, { hasTime: !option.hasTime })}
                         title={option.hasTime ? "時間を削除" : "時間を追加"}
                       >
                         <Clock className={`w-4 h-4 ${option.hasTime ? 'text-blue-600' : 'text-gray-400'}`} />
@@ -300,14 +328,28 @@ export default function CreateEventPage() {
                         </Button>
                       )}
                     </div>
-                    {option.hasTime && !option.datetime.includes('T') && (
-                      <div className="ml-0">
-                        <Input
-                          type="time"
-                          onChange={(e) => updateDateOption(option.id, `${option.datetime}T${e.target.value}`)}
-                          className="w-32"
-                          placeholder="時間"
-                        />
+                    {option.hasTime && (
+                      <div className="flex gap-2 items-center">
+                        <div className="flex-1">
+                          <Label className="text-xs text-gray-600">開始時間</Label>
+                          <Input
+                            type="time"
+                            value={option.startTime || ""}
+                            onChange={(e) => updateDateOption(option.id, { startTime: e.target.value })}
+                            className="w-full"
+                            placeholder="開始時間"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs text-gray-600">終了時間</Label>
+                          <Input
+                            type="time"
+                            value={option.endTime || ""}
+                            onChange={(e) => updateDateOption(option.id, { endTime: e.target.value })}
+                            className="w-full"
+                            placeholder="終了時間"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>

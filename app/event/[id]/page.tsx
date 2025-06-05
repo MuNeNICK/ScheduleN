@@ -18,6 +18,8 @@ interface DateOptionWithId {
   id?: number
   datetime: string
   formatted: string
+  startTime?: string
+  endTime?: string
 }
 
 interface ParticipantWithData {
@@ -59,7 +61,22 @@ export default function EventPage() {
   const [passwordError, setPasswordError] = useState("")
   const [isConfirming, setIsConfirming] = useState(false)
   const [calendarKey, setCalendarKey] = useState(0)
+  const [showCalendarDropdown, setShowCalendarDropdown] = useState(false)
+  const [showIndividualDropdowns, setShowIndividualDropdowns] = useState<Record<number, boolean>>({})
   const participateFormRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('.calendar-dropdown')) {
+        setShowCalendarDropdown(false)
+        setShowIndividualDropdowns({})
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -349,6 +366,171 @@ export default function EventPage() {
     window.open(`/api/events/${event.id}/ical`, '_blank')
   }
 
+  const downloadIndividualICal = (dateOptionId: number) => {
+    if (!event) return
+    
+    const dateOption = event.dateOptions?.find(opt => opt.id === dateOptionId)
+    if (!dateOption) return
+    
+    // Parse the date correctly
+    let startTime: Date
+    let endTime: Date
+    
+    if (dateOption.startTime) {
+      // Use the specific start time from the date option
+      startTime = new Date(dateOption.datetime + 'T' + dateOption.startTime + ':00')
+      if (dateOption.endTime) {
+        endTime = new Date(dateOption.datetime + 'T' + dateOption.endTime + ':00')
+      } else {
+        // Default to 1 hour if no end time specified
+        endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
+      }
+    } else {
+      // Fallback to default times if no time specified
+      if (dateOption.datetime.includes('T')) {
+        startTime = new Date(dateOption.datetime)
+      } else {
+        startTime = new Date(dateOption.datetime + 'T10:00:00')
+      }
+      endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
+    }
+    
+    // Get participant names for attendees
+    const attendees = event.participants
+      ?.filter(p => p.availabilities[dateOptionId.toString()] === 'available')
+      .map(p => p.name) || []
+    
+    // Generate simple iCal content
+    const formatDateTime = (date: Date): string => {
+      return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+    }
+
+    const uid = `${Date.now()}-${dateOptionId}@schedulen.app`
+    const dtstamp = formatDateTime(new Date())
+    const dtstart = formatDateTime(startTime)
+    const dtend = formatDateTime(endTime)
+    
+    const description = event.description + (attendees.length > 0 ? `\n\n参加者: ${attendees.join(', ')}` : '')
+    
+    const icalContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ScheduleN//ScheduleN App//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${dtstamp}`,
+      `DTSTART:${dtstart}`,
+      `DTEND:${dtend}`,
+      `SUMMARY:${event.title.replace(/[,;\\]/g, '\\$&')}`,
+      `DESCRIPTION:${description.replace(/[,;\\]/g, '\\$&').replace(/\n/g, '\\n')}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n')
+    
+    const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${event.title}_${dateOption.formatted.replace(/[^a-zA-Z0-9]/g, '_')}.ics`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const toggleIndividualDropdown = (dateOptionId: number) => {
+    setShowIndividualDropdowns(prev => ({
+      ...prev,
+      [dateOptionId]: !prev[dateOptionId]
+    }))
+  }
+
+  const addToGoogleCalendar = (dateOptionId: number) => {
+    if (!event) return
+    
+    const dateOption = event.dateOptions?.find(opt => opt.id === dateOptionId)
+    if (!dateOption) return
+    
+    console.log('Original datetime:', dateOption.datetime)
+    
+    // Parse the date correctly
+    let startTime: Date
+    let endTime: Date
+    
+    if (dateOption.startTime) {
+      // Use the specific start time from the date option
+      startTime = new Date(dateOption.datetime + 'T' + dateOption.startTime + ':00')
+      if (dateOption.endTime) {
+        endTime = new Date(dateOption.datetime + 'T' + dateOption.endTime + ':00')
+      } else {
+        // Default to 1 hour if no end time specified
+        endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
+      }
+    } else {
+      // Fallback to default times if no time specified
+      if (dateOption.datetime.includes('T')) {
+        startTime = new Date(dateOption.datetime)
+      } else {
+        startTime = new Date(dateOption.datetime + 'T10:00:00')
+      }
+      endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
+    }
+    
+    console.log('Parsed startTime:', startTime)
+    console.log('Parsed endTime:', endTime)
+    
+    // Get participant names for attendees
+    const attendees = event.participants
+      ?.filter(p => p.availabilities[dateOptionId.toString()] === 'available')
+      .map(p => p.name) || []
+    
+    // Format for Google Calendar (YYYYMMDDTHHMMSSZ format)
+    const formatGoogleDateTime = (date: Date): string => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      const seconds = String(date.getSeconds()).padStart(2, '0')
+      
+      return `${year}${month}${day}T${hours}${minutes}${seconds}`
+    }
+
+    const startTimeFormatted = formatGoogleDateTime(startTime)
+    const endTimeFormatted = formatGoogleDateTime(endTime)
+    
+    console.log('Formatted start:', startTimeFormatted)
+    console.log('Formatted end:', endTimeFormatted)
+    
+    const description = event.description + (attendees.length > 0 ? `\n\n参加者: ${attendees.join(', ')}` : '')
+    
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: event.title,
+      dates: `${startTimeFormatted}/${endTimeFormatted}`,
+      details: description,
+    })
+
+    const url = `https://calendar.google.com/calendar/render?${params.toString()}`
+    console.log('Google Calendar URL:', url)
+    window.open(url, '_blank')
+  }
+
+  const addAllToGoogleCalendar = () => {
+    if (!event?.confirmedDateOptionIds) return
+    
+    const count = event.confirmedDateOptionIds.length
+    
+    console.log('Adding all dates to Google Calendar:', event.confirmedDateOptionIds)
+    
+    // Open Google Calendar for each confirmed date immediately
+    event.confirmedDateOptionIds.forEach((dateOptionId, index) => {
+      console.log(`Opening Google Calendar for date option ${dateOptionId} (${index + 1}/${count})`)
+      addToGoogleCalendar(dateOptionId)
+    })
+  }
+
   if (!event) {
     return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>
   }
@@ -530,49 +712,124 @@ export default function EventPage() {
                     <CheckCircle className="w-5 h-5" />
                     確定日程 ({event.confirmedDateOptionIds.length}件)
                   </CardTitle>
-                  <Button
-                    onClick={downloadICal}
-                    variant="outline"
-                    size="sm"
-                    className="bg-white"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    すべてカレンダーに追加
-                  </Button>
+                  <div className="flex gap-2">
+                    <div className="relative calendar-dropdown">
+                      <Button
+                        onClick={() => setShowCalendarDropdown(!showCalendarDropdown)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        すべてカレンダーに追加
+                      </Button>
+                      
+                      {showCalendarDropdown && (
+                        <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                          <div className="py-1">
+                            <button
+                              onClick={() => {
+                                addAllToGoogleCalendar()
+                                setShowCalendarDropdown(false)
+                              }}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              <Calendar className="w-4 h-4 mr-3" />
+                              Googleカレンダーに追加
+                            </button>
+                            <button
+                              onClick={() => {
+                                downloadICal()
+                                setShowCalendarDropdown(false)
+                              }}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              <Download className="w-4 h-4 mr-3" />
+                              iCalファイルをダウンロード
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {event.confirmedDateOptionIds.map((confirmedId) => {
-                    const dateOption = event.dateOptions?.find(opt => opt.id === confirmedId)
-                    if (!dateOption) return null
-                    
-                    const participants = event.participants?.filter(p => 
-                      p.availabilities[confirmedId.toString()] === 'available'
-                    ).length || 0
-                    
-                    return (
+                  {event.confirmedDateOptionIds
+                    .map((confirmedId) => event.dateOptions?.find(opt => opt.id === confirmedId))
+                    .filter((dateOption): dateOption is NonNullable<typeof dateOption> => dateOption !== undefined)
+                    .sort((a, b) => {
+                      const dateA = new Date(a.datetime + (a.startTime ? `T${a.startTime}` : 'T00:00'))
+                      const dateB = new Date(b.datetime + (b.startTime ? `T${b.startTime}` : 'T00:00'))
+                      return dateA.getTime() - dateB.getTime()
+                    })
+                    .map((dateOption) => {
+                      const confirmedId = dateOption.id!
+                      const participants = event.participants?.filter(p => 
+                        p.availabilities[confirmedId.toString()] === 'available'
+                      ).length || 0
+                      
+                      return (
                       <div key={confirmedId} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
                         <div className="flex items-center gap-3">
                           <CheckCircle className="w-4 h-4 text-green-600" />
                           <span className="font-medium text-green-800">{dateOption.formatted}</span>
                           <span className="text-sm text-green-600">参加可能: {participants}名</span>
                         </div>
-                        <Button
-                          onClick={() => dateOption.id && toggleDateConfirmation(dateOption.id)}
-                          variant="ghost"
-                          size="sm"
-                          className="hover:bg-red-50"
-                          disabled={isConfirming}
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <div className="relative calendar-dropdown">
+                            <Button
+                              onClick={() => toggleIndividualDropdown(confirmedId)}
+                              variant="outline"
+                              size="sm"
+                              className="bg-blue-50 hover:bg-blue-100 border-blue-300"
+                            >
+                              <Calendar className="w-4 h-4" />
+                            </Button>
+                            
+                            {showIndividualDropdowns[confirmedId] && (
+                              <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                                <div className="py-1">
+                                  <button
+                                    onClick={() => {
+                                      addToGoogleCalendar(confirmedId)
+                                      setShowIndividualDropdowns(prev => ({ ...prev, [confirmedId]: false }))
+                                    }}
+                                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    <Calendar className="w-4 h-4 mr-2" />
+                                    Googleカレンダー
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      downloadIndividualICal(confirmedId)
+                                      setShowIndividualDropdowns(prev => ({ ...prev, [confirmedId]: false }))
+                                    }}
+                                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    iCalダウンロード
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            onClick={() => dateOption.id && toggleDateConfirmation(dateOption.id)}
+                            variant="ghost"
+                            size="sm"
+                            className="hover:bg-red-50"
+                            disabled={isConfirming}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     )
                   })}
                 </div>
                 <p className="text-sm text-green-600 mt-3">
-                  複数の日程が確定されています。「すべてカレンダーに追加」ボタンからGoogleカレンダー等にまとめてインポートできます。
+                  複数の日程が確定されています。「カレンダーに追加」ボタンから追加方法を選択できます。個別の日程も右側のボタンから追加可能です。
                 </p>
               </CardContent>
             </Card>
@@ -590,7 +847,9 @@ export default function EventPage() {
                       <TableHead>参加者</TableHead>
                       {event.dateOptions.map((option) => (
                         <TableHead key={option.id || option.datetime} className="text-center min-w-[120px]">
-                          {option.formatted}
+                          <div>
+                            {option.formatted}
+                          </div>
                         </TableHead>
                       ))}
                       <TableHead className="min-w-[200px]">備考</TableHead>

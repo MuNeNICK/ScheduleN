@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEvent } from '@/lib/event-service'
-import { generateICalFile } from '@/lib/ical-utils'
 
 export async function GET(
   request: NextRequest,
@@ -43,10 +42,24 @@ export async function GET(
       
       if (!confirmedDateOption) continue
       
-      // Parse the date and create end time (1 hour later by default)
-      const startTime = new Date(confirmedDateOption.datetime)
-      const endTime = new Date(startTime)
-      endTime.setHours(startTime.getHours() + 1)
+      // Parse the date and time
+      let startTime: Date
+      let endTime: Date
+      
+      if (confirmedDateOption.startTime) {
+        // Use the specific start time from the date option
+        startTime = new Date(confirmedDateOption.datetime + 'T' + confirmedDateOption.startTime + ':00')
+        if (confirmedDateOption.endTime) {
+          endTime = new Date(confirmedDateOption.datetime + 'T' + confirmedDateOption.endTime + ':00')
+        } else {
+          // Default to 1 hour if no end time specified
+          endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
+        }
+      } else {
+        // Fallback to default times if no time specified
+        startTime = new Date(confirmedDateOption.datetime + 'T10:00:00')
+        endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
+      }
       
       // Get participant names for attendees
       const attendees = event.participants

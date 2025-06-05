@@ -20,7 +20,7 @@ export function generateICalFile(event: ICalEvent): string {
   const dtstart = formatDateTime(event.startTime);
   const dtend = formatDateTime(event.endTime);
 
-  let icalContent = [
+  const icalContent = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//ScheduleN//ScheduleN App//EN',
@@ -78,4 +78,28 @@ export function createICalDownload(icalContent: string, filename: string): void 
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export function createGoogleCalendarUrl(event: ICalEvent): string {
+  const formatGoogleDateTime = (date: Date): string => {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  };
+
+  const startTime = formatGoogleDateTime(event.startTime);
+  const endTime = formatGoogleDateTime(event.endTime);
+  
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${startTime}/${endTime}`,
+    details: event.description || '',
+    location: event.location || '',
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function openGoogleCalendar(event: ICalEvent): void {
+  const url = createGoogleCalendarUrl(event);
+  window.open(url, '_blank');
 }
