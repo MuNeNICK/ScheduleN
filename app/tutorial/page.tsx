@@ -1060,11 +1060,40 @@ export default function TutorialPage() {
                         const dateInfo = getDateInfo(selectedDate)
                         return (
                           <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-medium">時間:</span>
-                              <span>{dateInfo.dateOption?.formatted}</span>
-                              {dateInfo.isConfirmed && (
-                                <Badge variant="default" className="bg-blue-600 text-xs">確定</Badge>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-medium">時間:</span>
+                                <span>{dateInfo.dateOption?.formatted}</span>
+                                {dateInfo.isConfirmed && (
+                                  <Badge variant="default" className="bg-blue-600 text-xs">確定</Badge>
+                                )}
+                              </div>
+                              {dateInfo.dateOption?.id && (
+                                <Button
+                                  onClick={() => toggleDateConfirmation(dateInfo.dateOption.id!)}
+                                  variant={dateInfo.isConfirmed ? "default" : "outline"}
+                                  size="sm"
+                                  disabled={isConfirming}
+                                  className={
+                                    dateInfo.isConfirmed 
+                                      ? "bg-green-600 hover:bg-green-700" 
+                                      : dateInfo.participationRate >= 0.7 
+                                        ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                                        : ""
+                                  }
+                                >
+                                  {dateInfo.isConfirmed ? (
+                                    <>
+                                      <Check className="w-4 h-4 mr-1" />
+                                      確定済
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="w-4 h-4 mr-1" />
+                                      確定
+                                    </>
+                                  )}
+                                </Button>
                               )}
                             </div>
                             
