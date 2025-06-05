@@ -178,22 +178,43 @@ export async function updateEvent(id: string, updates: Partial<Pick<Event, 'titl
     }
 
     if (updates.dateOptions !== undefined) {
-      // 既存の日時オプションとその回答を取得
-      const existingOptionsResult = await client.query<{ id: number, datetime: string }>(
-        'SELECT id, datetime FROM date_options WHERE event_id = $1',
+      // 既存の日時オプションとその回答、確定日を取得
+      const existingOptionsResult = await client.query<{ id: number, datetime: string, start_time: string | null, end_time: string | null }>(
+        'SELECT id, datetime, start_time, end_time FROM date_options WHERE event_id = $1',
         [id]
       )
       const existingOptions = existingOptionsResult.rows
       
       // 既存の回答を一時的に保存
-      const existingAvailabilities: { [datetime: string]: { participant_id: number, availability: string }[] } = {}
+      const existingData: { [datetime: string]: Array<{
+        start_time: string | null,
+        end_time: string | null,
+        availabilities: { participant_id: number, availability: string }[],
+        isConfirmed: boolean
+      }> } = {}
       
       for (const option of existingOptions) {
         const availabilitiesResult = await client.query<{ participant_id: number, availability: string }>(
           'SELECT participant_id, availability FROM availabilities WHERE date_option_id = $1',
           [option.id]
         )
-        existingAvailabilities[option.datetime] = availabilitiesResult.rows
+        
+        // 確定日の確認
+        const confirmedResult = await client.query<{ id: number }>(
+          'SELECT id FROM confirmed_dates WHERE date_option_id = $1',
+          [option.id]
+        )
+        
+        if (!existingData[option.datetime]) {
+          existingData[option.datetime] = []
+        }
+        
+        existingData[option.datetime].push({
+          start_time: option.start_time,
+          end_time: option.end_time,
+          availabilities: availabilitiesResult.rows,
+          isConfirmed: confirmedResult.rows.length > 0
+        })
       }
       
       // 削除された日時オプションの参加者回答を削除
@@ -210,7 +231,7 @@ export async function updateEvent(id: string, updates: Partial<Pick<Event, 'titl
       // 全ての日時オプションを削除して再作成
       await client.query('DELETE FROM date_options WHERE event_id = $1', [id])
       
-      // 新しい日時オプションを作成し、既存の参加者回答を復元
+      // 新しい日時オプションを作成し、既存の参加者回答と確定日を復元
       for (const dateOption of updates.dateOptions) {
         const insertResult = await client.query<{ id: number }>(
           'INSERT INTO date_options (event_id, datetime, formatted, start_time, end_time) VALUES ($1, $2, $3, $4, $5) RETURNING id',
@@ -218,14 +239,52 @@ export async function updateEvent(id: string, updates: Partial<Pick<Event, 'titl
         )
         const newOptionId = insertResult.rows[0].id
         
-        // 同じ日時の既存回答があれば復元
-        const savedAvailabilities = existingAvailabilities[dateOption.datetime]
-        if (savedAvailabilities) {
-          for (const avail of savedAvailabilities) {
-            await client.query(
-              'INSERT INTO availabilities (participant_id, date_option_id, availability) VALUES ($1, $2, $3)',
-              [avail.participant_id, newOptionId, avail.availability]
+        // 同じ日付の既存データから最適なマッチを見つける
+        const existingOptionsForDate = existingData[dateOption.datetime]
+        if (existingOptionsForDate) {
+          let bestMatch = null
+          
+          // 1. 完全一致（日付・開始時間・終了時間すべて同じ）
+          bestMatch = existingOptionsForDate.find(existing => 
+            existing.start_time === (dateOption.startTime || null) &&
+            existing.end_time === (dateOption.endTime || null)
+          )
+          
+          // 2. 時間なし→時間ありの場合（元々時間指定がなかった日程に時間を追加）
+          if (!bestMatch && dateOption.startTime) {
+            bestMatch = existingOptionsForDate.find(existing => 
+              existing.start_time === null && existing.end_time === null
             )
+          }
+          
+          // 3. 時間あり→時間なしの場合（時間指定を削除）
+          if (!bestMatch && !dateOption.startTime) {
+            bestMatch = existingOptionsForDate.find(existing => 
+              existing.start_time !== null || existing.end_time !== null
+            )
+          }
+          
+          // 4. フォールバック：同じ日付の最初のオプション
+          if (!bestMatch && existingOptionsForDate.length > 0) {
+            bestMatch = existingOptionsForDate[0]
+          }
+          
+          if (bestMatch) {
+            // 回答を復元
+            for (const avail of bestMatch.availabilities) {
+              await client.query(
+                'INSERT INTO availabilities (participant_id, date_option_id, availability) VALUES ($1, $2, $3)',
+                [avail.participant_id, newOptionId, avail.availability]
+              )
+            }
+            
+            // 確定日を復元
+            if (bestMatch.isConfirmed) {
+              await client.query(
+                'INSERT INTO confirmed_dates (event_id, date_option_id) VALUES ($1, $2)',
+                [id, newOptionId]
+              )
+            }
           }
         }
       }
