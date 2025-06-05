@@ -42,6 +42,7 @@ export async function GET(
       
       if (!confirmedDateOption) continue
       
+      
       // Parse the date and time
       let startTime: Date
       let endTime: Date
@@ -71,27 +72,54 @@ export async function GET(
       
       // Generate individual event
       const formatDateTime = (date: Date): string => {
-        return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+        // Format as local time without timezone (YYYYMMDDTHHMMSS)
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        const hours = String(date.getHours()).padStart(2, '0')
+        const minutes = String(date.getMinutes()).padStart(2, '0')
+        const seconds = String(date.getSeconds()).padStart(2, '0')
+        return `${year}${month}${day}T${hours}${minutes}${seconds}`
+      }
+
+      const formatDateOnly = (date: Date): string => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}${month}${day}`
       }
       
-      const uid = `${Date.now()}-${confirmedDateOptionId}@schedulen.app`
-      const dtstamp = formatDateTime(new Date())
-      const dtstart = formatDateTime(startTime)
-      const dtend = formatDateTime(endTime)
+      const uid = `${event.id}-${confirmedDateOptionId}-${Date.now()}@schedulen.app`
+      const dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+      
+      let dtstart: string
+      let dtend: string
+      let isAllDay = false
+      
+      if (confirmedDateOption.startTime) {
+        // Time specified - use datetime format
+        dtstart = formatDateTime(startTime)
+        dtend = formatDateTime(endTime)
+      } else {
+        // No time specified - use all-day format
+        isAllDay = true
+        const dateOnly = new Date(confirmedDateOption.datetime + 'T00:00:00')
+        dtstart = formatDateOnly(dateOnly)
+        const nextDay = new Date(dateOnly)
+        nextDay.setDate(nextDay.getDate() + 1)
+        dtend = formatDateOnly(nextDay)
+      }
       
       icalContent += '\r\nBEGIN:VEVENT'
       icalContent += `\r\nUID:${uid}`
       icalContent += `\r\nDTSTAMP:${dtstamp}`
-      icalContent += `\r\nDTSTART:${dtstart}`
-      icalContent += `\r\nDTEND:${dtend}`
+      icalContent += isAllDay ? `\r\nDTSTART;VALUE=DATE:${dtstart}` : `\r\nDTSTART:${dtstart}`
+      icalContent += isAllDay ? `\r\nDTEND;VALUE=DATE:${dtend}` : `\r\nDTEND:${dtend}`
       icalContent += `\r\nSUMMARY:${event.title.replace(/[,;\\]/g, '\\$&')}`
       
-      if (event.description) {
-        icalContent += `\r\nDESCRIPTION:${event.description.replace(/[,;\\]/g, '\\$&').replace(/\n/g, '\\n')}`
-      }
-      
-      if (attendees.length > 0) {
-        icalContent += `\r\nATTENDEES:${attendees.join(', ')}`
+      const description = event.description + (attendees.length > 0 ? `\n\n参加者: ${attendees.join(', ')}` : '')
+      if (description) {
+        icalContent += `\r\nDESCRIPTION:${description.replace(/[,;\\]/g, '\\$&').replace(/\n/g, '\\n')}`
       }
       
       icalContent += '\r\nSTATUS:CONFIRMED'

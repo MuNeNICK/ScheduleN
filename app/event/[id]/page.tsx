@@ -402,13 +402,43 @@ export default function EventPage() {
     
     // Generate simple iCal content
     const formatDateTime = (date: Date): string => {
-      return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+      // Format as local time without timezone (YYYYMMDDTHHMMSS)
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      const seconds = String(date.getSeconds()).padStart(2, '0')
+      return `${year}${month}${day}T${hours}${minutes}${seconds}`
+    }
+
+    const formatDateOnly = (date: Date): string => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}${month}${day}`
     }
 
     const uid = `${Date.now()}-${dateOptionId}@schedulen.app`
-    const dtstamp = formatDateTime(new Date())
-    const dtstart = formatDateTime(startTime)
-    const dtend = formatDateTime(endTime)
+    const dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+    
+    let dtstart: string
+    let dtend: string
+    let isAllDay = false
+    
+    if (dateOption.startTime) {
+      // Time specified - use datetime format
+      dtstart = formatDateTime(startTime)
+      dtend = formatDateTime(endTime)
+    } else {
+      // No time specified - use all-day format
+      isAllDay = true
+      const dateOnly = new Date(dateOption.datetime + 'T00:00:00')
+      dtstart = formatDateOnly(dateOnly)
+      const nextDay = new Date(dateOnly)
+      nextDay.setDate(nextDay.getDate() + 1)
+      dtend = formatDateOnly(nextDay)
+    }
     
     const description = event.description + (attendees.length > 0 ? `\n\n参加者: ${attendees.join(', ')}` : '')
     
@@ -421,8 +451,8 @@ export default function EventPage() {
       'BEGIN:VEVENT',
       `UID:${uid}`,
       `DTSTAMP:${dtstamp}`,
-      `DTSTART:${dtstart}`,
-      `DTEND:${dtend}`,
+      isAllDay ? `DTSTART;VALUE=DATE:${dtstart}` : `DTSTART:${dtstart}`,
+      isAllDay ? `DTEND;VALUE=DATE:${dtend}` : `DTEND:${dtend}`,
       `SUMMARY:${event.title.replace(/[,;\\]/g, '\\$&')}`,
       `DESCRIPTION:${description.replace(/[,;\\]/g, '\\$&').replace(/\n/g, '\\n')}`,
       'STATUS:CONFIRMED',
@@ -485,7 +515,7 @@ export default function EventPage() {
       ?.filter(p => p.availabilities[dateOptionId.toString()] === 'available')
       .map(p => p.name) || []
     
-    // Format for Google Calendar (YYYYMMDDTHHMMSSZ format)
+    // Format for Google Calendar
     const formatGoogleDateTime = (date: Date): string => {
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -497,8 +527,29 @@ export default function EventPage() {
       return `${year}${month}${day}T${hours}${minutes}${seconds}`
     }
 
-    const startTimeFormatted = formatGoogleDateTime(startTime)
-    const endTimeFormatted = formatGoogleDateTime(endTime)
+    const formatGoogleDateOnly = (date: Date): string => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      
+      return `${year}${month}${day}`
+    }
+
+    let startTimeFormatted: string
+    let endTimeFormatted: string
+    
+    if (dateOption.startTime) {
+      // Time specified - use datetime format
+      startTimeFormatted = formatGoogleDateTime(startTime)
+      endTimeFormatted = formatGoogleDateTime(endTime)
+    } else {
+      // No time specified - use all-day format
+      const dateOnly = new Date(dateOption.datetime + 'T00:00:00')
+      startTimeFormatted = formatGoogleDateOnly(dateOnly)
+      const nextDay = new Date(dateOnly)
+      nextDay.setDate(nextDay.getDate() + 1)
+      endTimeFormatted = formatGoogleDateOnly(nextDay)
+    }
     
     console.log('Formatted start:', startTimeFormatted)
     console.log('Formatted end:', endTimeFormatted)

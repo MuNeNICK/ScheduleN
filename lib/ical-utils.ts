@@ -8,6 +8,7 @@ export interface ICalEvent {
   location?: string;
   organizer?: string;
   attendees?: string[];
+  isAllDay?: boolean;
 }
 
 export function generateICalFile(event: ICalEvent): string {
@@ -15,10 +16,23 @@ export function generateICalFile(event: ICalEvent): string {
     return format(date, "yyyyMMdd'T'HHmmss");
   };
 
+  const formatDateOnly = (date: Date): string => {
+    return format(date, "yyyyMMdd");
+  };
+
   const uid = `${Date.now()}@schedulen.app`;
   const dtstamp = formatDateTime(new Date());
-  const dtstart = formatDateTime(event.startTime);
-  const dtend = formatDateTime(event.endTime);
+  
+  let dtstart: string;
+  let dtend: string;
+  
+  if (event.isAllDay) {
+    dtstart = formatDateOnly(event.startTime);
+    dtend = formatDateOnly(event.endTime);
+  } else {
+    dtstart = formatDateTime(event.startTime);
+    dtend = formatDateTime(event.endTime);
+  }
 
   const icalContent = [
     'BEGIN:VCALENDAR',
@@ -29,8 +43,8 @@ export function generateICalFile(event: ICalEvent): string {
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${dtstamp}`,
-    `DTSTART:${dtstart}`,
-    `DTEND:${dtend}`,
+    event.isAllDay ? `DTSTART;VALUE=DATE:${dtstart}` : `DTSTART:${dtstart}`,
+    event.isAllDay ? `DTEND;VALUE=DATE:${dtend}` : `DTEND:${dtend}`,
     `SUMMARY:${escapeICalString(event.title)}`,
   ];
 
@@ -85,8 +99,20 @@ export function createGoogleCalendarUrl(event: ICalEvent): string {
     return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
   };
 
-  const startTime = formatGoogleDateTime(event.startTime);
-  const endTime = formatGoogleDateTime(event.endTime);
+  const formatGoogleDateOnly = (date: Date): string => {
+    return format(date, "yyyyMMdd");
+  };
+
+  let startTime: string;
+  let endTime: string;
+  
+  if (event.isAllDay) {
+    startTime = formatGoogleDateOnly(event.startTime);
+    endTime = formatGoogleDateOnly(event.endTime);
+  } else {
+    startTime = formatGoogleDateTime(event.startTime);
+    endTime = formatGoogleDateTime(event.endTime);
+  }
   
   const params = new URLSearchParams({
     action: 'TEMPLATE',
