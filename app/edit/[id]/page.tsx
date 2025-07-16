@@ -7,8 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Minus, ArrowLeft, Trash2, AlertTriangle, Clock } from "lucide-react"
+import { Plus, Minus, ArrowLeft, Trash2, AlertTriangle, Clock, Edit2, X, Check } from "lucide-react"
 import Link from "next/link"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { ja } from "date-fns/locale"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface Event {
   id: string
@@ -49,6 +53,12 @@ export default function EditEventPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showBulkEdit, setShowBulkEdit] = useState(false)
+  const [selectedDates, setSelectedDates] = useState<Date[]>([])
+  const [bulkStartTime, setBulkStartTime] = useState("")
+  const [bulkEndTime, setBulkEndTime] = useState("")
+  const [bulkHasTime, setBulkHasTime] = useState(false)
+  const [bulkEditMode, setBulkEditMode] = useState<"add" | "delete" | "edit">("add")
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -102,6 +112,73 @@ export default function EditEventPage() {
     setDateOptions(dateOptions.map(option =>
       option.id === id ? { ...option, ...updates } : option
     ))
+  }
+
+  const handleBulkOperation = () => {
+    if (selectedDates.length === 0) {
+      alert("日付を選択してください。")
+      return
+    }
+
+    if (bulkEditMode === "add") {
+      const newOptions: DateTimeOption[] = []
+      selectedDates.forEach(date => {
+        const dateStr = format(date, 'yyyy-MM-dd')
+        const existingOption = dateOptions.find(opt => opt.datetime === dateStr)
+        if (!existingOption) {
+          const newId = Math.random().toString(36).substr(2, 9)
+          newOptions.push({
+            id: newId,
+            datetime: dateStr,
+            hasTime: bulkHasTime,
+            startTime: bulkHasTime ? bulkStartTime : "",
+            endTime: bulkHasTime ? bulkEndTime : ""
+          })
+        }
+      })
+      setDateOptions([...dateOptions, ...newOptions])
+    } else if (bulkEditMode === "delete") {
+      const datesToDelete = selectedDates.map(d => format(d, 'yyyy-MM-dd'))
+      setDateOptions(dateOptions.filter(opt => !datesToDelete.includes(opt.datetime)))
+    } else if (bulkEditMode === "edit") {
+      const datesToEdit = selectedDates.map(d => format(d, 'yyyy-MM-dd'))
+      setDateOptions(dateOptions.map(opt => {
+        if (datesToEdit.includes(opt.datetime)) {
+          return {
+            ...opt,
+            hasTime: bulkHasTime,
+            startTime: bulkHasTime ? bulkStartTime : "",
+            endTime: bulkHasTime ? bulkEndTime : ""
+          }
+        }
+        return opt
+      }))
+    }
+
+    setSelectedDates([])
+    setBulkStartTime("")
+    setBulkEndTime("")
+    setBulkHasTime(false)
+    setShowBulkEdit(false)
+  }
+
+
+  const getDateModifiers = () => {
+    const modifiers: Record<string, Date[]> = {}
+    if (dateOptions.length > 0) {
+      modifiers.existing = dateOptions.map(opt => new Date(opt.datetime + 'T00:00:00'))
+    }
+    if (selectedDates.length > 0) {
+      modifiers.selected = selectedDates
+    }
+    return modifiers
+  }
+
+  const getDateModifiersClassNames = () => {
+    return {
+      existing: "bg-blue-100 text-blue-900 hover:bg-blue-200",
+      selected: "bg-orange-100 text-orange-900 hover:bg-orange-200 font-bold"
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -243,7 +320,18 @@ export default function EditEventPage() {
               </div>
 
               <div className="space-y-4">
-                <Label>候補日時 *</Label>
+                <div className="flex items-center justify-between">
+                  <Label>候補日時 *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBulkEdit(true)}
+                  >
+                    <Edit2 className="w-4 h-4 mr-2" />
+                    一括編集
+                  </Button>
+                </div>
                 {dateOptions.map((option) => (
                   <div key={option.id} className="space-y-2 p-4 border rounded-lg">
                     <div className="flex gap-2 items-center">
@@ -360,6 +448,164 @@ export default function EditEventPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>日付の一括編集</DialogTitle>
+            <DialogDescription>
+              カレンダーから日付を選択して、一括で追加・削除・編集ができます。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button
+                variant={bulkEditMode === "add" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setBulkEditMode("add")}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                追加
+              </Button>
+              <Button
+                variant={bulkEditMode === "delete" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setBulkEditMode("delete")}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                削除
+              </Button>
+              <Button
+                variant={bulkEditMode === "edit" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setBulkEditMode("edit")}
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                時間編集
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium mb-2 block">
+                  カレンダーから日付を選択
+                </Label>
+                <div className="border rounded-lg p-2 w-fit">
+                  <Calendar
+                    mode="multiple"
+                    selected={selectedDates}
+                    onSelect={(dates) => setSelectedDates(dates || [])}
+                    locale={ja}
+                    modifiers={getDateModifiers()}
+                    modifiersClassNames={getDateModifiersClassNames()}
+                    className="rounded-md"
+                  />
+                </div>
+                <div className="mt-2 text-sm space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-blue-100 rounded"></div>
+                    <span>既存の候補日</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-orange-100 rounded"></div>
+                    <span>選択中の日付</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">
+                    選択した日付 ({selectedDates.length}件)
+                  </Label>
+                  <div className="border rounded-lg p-3 h-[200px] overflow-y-auto">
+                    {selectedDates.length === 0 ? (
+                      <p className="text-sm text-gray-500">日付を選択してください</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {selectedDates
+                          .sort((a, b) => a.getTime() - b.getTime())
+                          .map((date, index) => (
+                            <div key={index} className="flex items-center justify-between text-sm">
+                              <span>{format(date, "yyyy年MM月dd日 (E)", { locale: ja })}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedDates(selectedDates.filter((_, i) => i !== index))
+                                }}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {(bulkEditMode === "add" || bulkEditMode === "edit") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="bulk-has-time-dialog"
+                        checked={bulkHasTime}
+                        onChange={(e) => setBulkHasTime(e.target.checked)}
+                        className="rounded"
+                      />
+                      <Label htmlFor="bulk-has-time-dialog" className="text-sm">時間を指定</Label>
+                    </div>
+                    {bulkHasTime && (
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Label className="text-xs">開始時間</Label>
+                          <Input
+                            type="time"
+                            value={bulkStartTime}
+                            onChange={(e) => setBulkStartTime(e.target.value)}
+                            placeholder="開始時間"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs">終了時間</Label>
+                          <Input
+                            type="time"
+                            value={bulkEndTime}
+                            onChange={(e) => setBulkEndTime(e.target.value)}
+                            placeholder="終了時間"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={handleBulkOperation}
+                    disabled={selectedDates.length === 0}
+                    className="flex-1"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    {bulkEditMode === "add" ? "追加" : bulkEditMode === "delete" ? "削除" : "更新"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowBulkEdit(false)
+                      setSelectedDates([])
+                    }}
+                  >
+                    キャンセル
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
