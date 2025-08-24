@@ -69,6 +69,29 @@ export default function EventPage() {
   const [selectedTableMonth, setSelectedTableMonth] = useState(new Date())
   const participateFormRef = useRef<HTMLDivElement>(null)
 
+  // 日付フォーマットに曜日を追加する関数
+  const addWeekdayToDateOptions = (dateOptions: DateOptionWithId[]) => {
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+    return dateOptions.map((option) => {
+      // 既に曜日が含まれているかチェック
+      if (!option.formatted.includes('(')) {
+        const date = new Date(option.datetime + 'T00:00:00')
+        const weekday = weekdays[date.getDay()]
+        const baseDate = date.toLocaleDateString('ja-JP')
+        let formatted = `${baseDate} (${weekday})`
+        
+        // 時間情報がある場合は追加
+        const timeMatch = option.formatted.match(/\d{1,2}:\d{2}.*/)
+        if (timeMatch) {
+          formatted += ` ${timeMatch[0]}`
+        }
+        
+        return { ...option, formatted }
+      }
+      return option
+    })
+  }
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element
@@ -94,6 +117,11 @@ export default function EventPage() {
             setPasswordRequired(true)
             setEvent(foundEvent)
             return
+          }
+          
+          // 曜日が含まれていない場合は追加
+          if (foundEvent.dateOptions) {
+            foundEvent.dateOptions = addWeekdayToDateOptions(foundEvent.dateOptions)
           }
           
           setEvent(foundEvent)
@@ -204,10 +232,8 @@ export default function EventPage() {
     if (!isEditing) {
       const existingParticipant = event.participants?.find(p => p.name === participantName.trim())
       if (existingParticipant) {
-        const shouldEdit = confirm("同じ名前の参加者が既に存在します。回答を編集しますか？")
-        if (shouldEdit) {
-          startEditing(participantName.trim())
-        }
+        // 既存の参加者がいる場合は自動的に編集モードに切り替え
+        startEditing(participantName.trim())
         return
       }
       
@@ -231,6 +257,10 @@ export default function EventPage() {
           const eventResponse = await fetch(`/api/events/${event.id}`)
           if (eventResponse.ok) {
             const updatedEvent = await eventResponse.json()
+            // 曜日が含まれていない場合は追加
+            if (updatedEvent.dateOptions) {
+              updatedEvent.dateOptions = addWeekdayToDateOptions(updatedEvent.dateOptions)
+            }
             setEvent(updatedEvent)
             setParticipantName("")
             setParticipantComment("")
@@ -251,6 +281,49 @@ export default function EventPage() {
       } catch (error) {
         console.error('Error adding participant:', error)
         alert('参加者の登録に失敗しました。')
+      } finally {
+        setIsSubmitting(false)
+      }
+    } else {
+      // Handle update case
+      setIsSubmitting(true)
+      
+      try {
+        const response = await fetch(`/api/events/${event.id}/participants`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: editingParticipant,
+            availabilities,
+            comment: participantComment.trim()
+          }),
+        })
+
+        if (response.ok) {
+          // Re-fetch event data
+          const eventResponse = await fetch(`/api/events/${event.id}`)
+          if (eventResponse.ok) {
+            const updatedEvent = await eventResponse.json()
+            // 曜日が含まれていない場合は追加
+            if (updatedEvent.dateOptions) {
+              updatedEvent.dateOptions = addWeekdayToDateOptions(updatedEvent.dateOptions)
+            }
+            setEvent(updatedEvent)
+            cancelEditing()
+          }
+        } else {
+          const errorData = await response.json()
+          if (response.status === 404) {
+            alert('参加者が見つかりません。')
+          } else {
+            alert(`回答の更新に失敗しました: ${errorData.error || 'Unknown error'}`)
+          }
+        }
+      } catch (error) {
+        console.error('Error updating participant:', error)
+        alert('回答の更新に失敗しました。')
       } finally {
         setIsSubmitting(false)
       }
@@ -295,6 +368,10 @@ export default function EventPage() {
           const eventResponse = await fetch(`/api/events/${params.id}`)
           if (eventResponse.ok) {
             const foundEvent = await eventResponse.json()
+            // 曜日が含まれていない場合は追加
+            if (foundEvent.dateOptions) {
+              foundEvent.dateOptions = addWeekdayToDateOptions(foundEvent.dateOptions)
+            }
             setEvent(foundEvent)
             setPasswordRequired(false)
             
@@ -350,6 +427,10 @@ export default function EventPage() {
         const eventResponse = await fetch(`/api/events/${event.id}`)
         if (eventResponse.ok) {
           const updatedEvent = await eventResponse.json()
+          // 曜日が含まれていない場合は追加
+          if (updatedEvent.dateOptions) {
+            updatedEvent.dateOptions = addWeekdayToDateOptions(updatedEvent.dateOptions)
+          }
           setEvent(updatedEvent)
           // Force calendar re-render
           setCalendarKey(prev => prev + 1)

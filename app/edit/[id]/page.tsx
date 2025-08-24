@@ -80,13 +80,26 @@ export default function EditEventPage() {
           setPassword(foundEvent.password || "")
           
           if (foundEvent.dateOptions) {
-            setDateOptions(foundEvent.dateOptions.map((option: { id?: number; datetime: string; formatted: string; startTime?: string; endTime?: string }, index: number) => ({
+            const options = foundEvent.dateOptions.map((option: { id?: number; datetime: string; formatted: string; startTime?: string; endTime?: string }, index: number) => ({
               id: option.id ? option.id.toString() : `option-${index}`,
               datetime: option.datetime,
               hasTime: !!(option.startTime || option.endTime),
               startTime: option.startTime || "",
               endTime: option.endTime || ""
-            })))
+            }))
+            // 日付順でソート
+            options.sort((a: DateTimeOption, b: DateTimeOption) => {
+              if (!a.datetime) return 1
+              if (!b.datetime) return -1
+              const dateCompare = a.datetime.localeCompare(b.datetime)
+              if (dateCompare !== 0) return dateCompare
+              // 同じ日付の場合は時間でソート
+              if (a.startTime && b.startTime) {
+                return a.startTime.localeCompare(b.startTime)
+              }
+              return 0
+            })
+            setDateOptions(options)
           }
         }
       } catch (error) {
@@ -99,7 +112,20 @@ export default function EditEventPage() {
 
   const addDateOption = () => {
     const newId = Math.random().toString(36).substr(2, 9)
-    setDateOptions([...dateOptions, { id: newId, datetime: "", hasTime: false, startTime: "", endTime: "" }])
+    const newOptions = [...dateOptions, { id: newId, datetime: "", hasTime: false, startTime: "", endTime: "" }]
+    // 日付順でソート
+    newOptions.sort((a, b) => {
+      if (!a.datetime) return 1
+      if (!b.datetime) return -1
+      const dateCompare = a.datetime.localeCompare(b.datetime)
+      if (dateCompare !== 0) return dateCompare
+      // 同じ日付の場合は時間でソート
+      if (a.startTime && b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return 0
+    })
+    setDateOptions(newOptions)
   }
 
   const removeDateOption = (id: string) => {
@@ -109,9 +135,22 @@ export default function EditEventPage() {
   }
 
   const updateDateOption = (id: string, updates: Partial<DateTimeOption>) => {
-    setDateOptions(dateOptions.map(option =>
+    const updatedOptions = dateOptions.map(option =>
       option.id === id ? { ...option, ...updates } : option
-    ))
+    )
+    // 日付順でソート
+    updatedOptions.sort((a, b) => {
+      if (!a.datetime) return 1
+      if (!b.datetime) return -1
+      const dateCompare = a.datetime.localeCompare(b.datetime)
+      if (dateCompare !== 0) return dateCompare
+      // 同じ日付の場合は時間でソート
+      if (a.startTime && b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return 0
+    })
+    setDateOptions(updatedOptions)
   }
 
   const handleBulkOperation = () => {
@@ -136,7 +175,20 @@ export default function EditEventPage() {
           })
         }
       })
-      setDateOptions([...dateOptions, ...newOptions])
+      const allOptions = [...dateOptions, ...newOptions]
+      // 日付順でソート
+      allOptions.sort((a, b) => {
+        if (!a.datetime) return 1
+        if (!b.datetime) return -1
+        const dateCompare = a.datetime.localeCompare(b.datetime)
+        if (dateCompare !== 0) return dateCompare
+        // 同じ日付の場合は時間でソート
+        if (a.startTime && b.startTime) {
+          return a.startTime.localeCompare(b.startTime)
+        }
+        return 0
+      })
+      setDateOptions(allOptions)
     } else if (bulkEditMode === "delete") {
       const datesToDelete = selectedDates.map(d => format(d, 'yyyy-MM-dd'))
       setDateOptions(dateOptions.filter(opt => !datesToDelete.includes(opt.datetime)))
@@ -205,7 +257,10 @@ export default function EditEventPage() {
           description,
           password: password.trim() || undefined,
           dateOptions: validOptions.map(option => {
-            let formatted = new Date(option.datetime + 'T00:00:00').toLocaleDateString('ja-JP')
+            const date = new Date(option.datetime + 'T00:00:00')
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+            const weekday = weekdays[date.getDay()]
+            let formatted = `${date.toLocaleDateString('ja-JP')} (${weekday})`
             
             if (option.hasTime && option.startTime) {
               const timeStr = option.endTime 

@@ -36,7 +36,20 @@ export default function CreateEventPage() {
 
   const addDateOption = () => {
     const newId = Math.random().toString(36).substr(2, 9)
-    setDateOptions([...dateOptions, { id: newId, datetime: "", hasTime: false, startTime: "", endTime: "" }])
+    const newOptions = [...dateOptions, { id: newId, datetime: "", hasTime: false, startTime: "", endTime: "" }]
+    // 日付順でソート
+    newOptions.sort((a, b) => {
+      if (!a.datetime) return 1
+      if (!b.datetime) return -1
+      const dateCompare = a.datetime.localeCompare(b.datetime)
+      if (dateCompare !== 0) return dateCompare
+      // 同じ日付の場合は時間でソート
+      if (a.startTime && b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return 0
+    })
+    setDateOptions(newOptions)
   }
 
   const removeDateOption = (id: string) => {
@@ -46,9 +59,22 @@ export default function CreateEventPage() {
   }
 
   const updateDateOption = (id: string, updates: Partial<DateTimeOption>) => {
-    setDateOptions(dateOptions.map(option =>
+    const updatedOptions = dateOptions.map(option =>
       option.id === id ? { ...option, ...updates } : option
-    ))
+    )
+    // 日付順でソート
+    updatedOptions.sort((a, b) => {
+      if (!a.datetime) return 1
+      if (!b.datetime) return -1
+      const dateCompare = a.datetime.localeCompare(b.datetime)
+      if (dateCompare !== 0) return dateCompare
+      // 同じ日付の場合は時間でソート
+      if (a.startTime && b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return 0
+    })
+    setDateOptions(updatedOptions)
   }
 
   const addBulkDates = () => {
@@ -83,7 +109,20 @@ export default function CreateEventPage() {
       currentDate.setDate(currentDate.getDate() + 1)
     }
 
-    setDateOptions([...dateOptions, ...newOptions])
+    const allOptions = [...dateOptions, ...newOptions]
+    // 日付順でソート
+    allOptions.sort((a, b) => {
+      if (!a.datetime) return 1
+      if (!b.datetime) return -1
+      const dateCompare = a.datetime.localeCompare(b.datetime)
+      if (dateCompare !== 0) return dateCompare
+      // 同じ日付の場合は時間でソート
+      if (a.startTime && b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return 0
+    })
+    setDateOptions(allOptions)
     setBulkStartDate("")
     setBulkEndDate("")
     setBulkStartTime("")
@@ -109,7 +148,10 @@ export default function CreateEventPage() {
       description,
       password: password.trim() || undefined,
       dateOptions: validOptions.map(option => {
-        let formatted = new Date(option.datetime + 'T00:00:00').toLocaleDateString('ja-JP')
+        const date = new Date(option.datetime + 'T00:00:00')
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土']
+        const weekday = weekdays[date.getDay()]
+        let formatted = `${date.toLocaleDateString('ja-JP')} (${weekday})`
         
         if (option.hasTime && option.startTime) {
           const timeStr = option.endTime 

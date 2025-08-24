@@ -40,7 +40,7 @@ export async function getEvent(id: string): Promise<Event | null> {
     const event = eventResult.rows[0]
     
     const dateOptionsResult = await client.query<DateOptionRow>(
-      'SELECT * FROM date_options WHERE event_id = $1 ORDER BY id',
+      'SELECT * FROM date_options WHERE event_id = $1 ORDER BY datetime, start_time',
       [id]
     )
     
@@ -362,6 +362,61 @@ export async function getAllEvents(): Promise<Event[]> {
     }
     
     return events
+  } finally {
+    client.release()
+  }
+}
+
+export async function updateParticipant(
+  eventId: string,
+  participantName: string,
+  availabilities: Record<string, string>,
+  comment?: string
+): Promise<void> {
+  const pool = await getDb()
+  const client = await pool.connect()
+  
+  try {
+    await client.query('BEGIN')
+    
+    // Find the existing participant by name and event_id
+    const participantResult = await client.query<ParticipantRow>(
+      'SELECT id FROM participants WHERE event_id = $1 AND name = $2',
+      [eventId, participantName]
+    )
+    
+    if (participantResult.rows.length === 0) {
+      throw new Error('Participant not found')
+    }
+    
+    const participantId = participantResult.rows[0].id
+    
+    // Update the participant's comment
+    await client.query(
+      'UPDATE participants SET comment = $1, submitted_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [comment || null, participantId]
+    )
+    
+    // Delete existing availabilities
+    await client.query(
+      'DELETE FROM availabilities WHERE participant_id = $1',
+      [participantId]
+    )
+    
+    // Insert new availabilities
+    for (const [dateOptionId, availability] of Object.entries(availabilities)) {
+      if (availability) {
+        await client.query(
+          'INSERT INTO availabilities (participant_id, date_option_id, availability) VALUES ($1, $2, $3)',
+          [participantId, parseInt(dateOptionId), availability]
+        )
+      }
+    }
+    
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
   } finally {
     client.release()
   }
